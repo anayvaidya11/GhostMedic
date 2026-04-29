@@ -10,4 +10,3 @@ android/
 .env
 .env.*
 *.tsbuildinfo
-expo-env.d.ts
