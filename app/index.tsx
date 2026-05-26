@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { streamTCCCGuidance } from '../services/llmService';
+import { useScenarioStore } from '@/store/scenarioStore';
+import { AIResponse } from '@/components/AIResponse';
 const SCENARIOS = [
   {
     id: 'gsw-chest-01',
@@ -43,7 +45,6 @@ const SCENARIOS = [
     }
   }
 ];
-
 const vitalColor = (type: string, val: number) => {
   if (type === 'hr' && (val > 130 || val < 50)) return '#ff4d4d';
   if (type === 'hr' && (val > 100 || val < 60)) return '#ffb547';
@@ -55,20 +56,47 @@ const vitalColor = (type: string, val: number) => {
   if (type === 'spo2' && val < 95) return '#ffb547';
   return '#7cff6b';
 };
-
 export default function Home() {
   const [activeId, setActiveId] = useState(SCENARIOS[0].id);
   const [log, setLog] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const scenario = SCENARIOS.find(s => s.id === activeId)!;
   const { casualty } = scenario;
-
+  const aiResponse = useScenarioStore(st => st.aiResponse);
+  const isThinking = useScenarioStore(st => st.isThinking);
+  const streamingResponse = useScenarioStore(st => st.streamingResponse);
+  const setThinking = useScenarioStore(st => st.setThinking);
+  const appendStreamToken = useScenarioStore(st => st.appendStreamToken);
+  const setAiResponse = useScenarioStore(st => st.setAiResponse);
   const transmit = () => {
-    if (!input.trim()) return;
-    setLog(l => [...l, input.trim()]);
+    const text = input.trim();
+    if (!text) return;
+    setLog(l => [...l, text]);
     setInput('');
+    const v = casualty.vitals;
+    const report = [
+      `CALLSIGN: ${casualty.callsign}`,
+      `MECHANISM: ${casualty.mechanism}`,
+      `VITALS: HR ${v.hr} | BP ${v.bpSys}/${v.bpDia} | RR ${v.rr} | SpO2 ${v.spo2}%`,
+      'INJURIES:',
+      ...casualty.injuries.map(
+        inj => `- ${inj.type} (${inj.region}, ${inj.severity})${inj.notes ? `: ${inj.notes}` : ''}`
+      ),
+      `MEDIC OBSERVATION: ${text}`,
+    ].join('\n');
+    setThinking(true);
+    streamTCCCGuidance(report, {
+      onToken: (token) => appendStreamToken(token),
+      onComplete: (full) => {
+        setAiResponse(full);
+        setThinking(false);
+      },
+      onError: (err) => {
+        setAiResponse(err);
+        setThinking(false);
+      },
+    });
   };
-
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
@@ -136,6 +164,7 @@ export default function Home() {
             : log.map((entry, i) => <Text key={i} style={s.sage}>› {entry}</Text>)
           }
         </View>
+        <AIResponse response={aiResponse} isThinking={isThinking} streamingResponse={streamingResponse} />
         <View style={s.card}>
           <Text style={s.cardLabel}>&gt; MEDIC INPUT</Text>
           <TextInput
@@ -152,7 +181,6 @@ export default function Home() {
     </SafeAreaView>
   );
 }
-
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0f0a' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3326', backgroundColor: '#11160f' },
