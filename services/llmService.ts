@@ -35,52 +35,44 @@ export async function streamTCCCGuidance(
   const prompt = `CASUALTY REPORT:\n${casualtyReport}\n\nProvide TCCC guidance:`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         model: MODEL,
         prompt,
         system: TCCC_SYSTEM_PROMPT,
-        stream: true,
+        stream: false,
       }),
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       throw new Error(`Ollama returned ${response.status}`);
     }
 
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let fullResponse = '';
+    const json = await response.json();
+    const text = json.response ?? '';
 
-    if (!reader) throw new Error('No response body from Ollama');
+    if (!text) throw new Error('Empty response from model');
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(l => l.trim());
-
-      for (const line of lines) {
-        try {
-          const json = JSON.parse(line);
-          if (json.response) {
-            fullResponse += json.response;
-            callbacks.onToken(json.response);
-          }
-          if (json.done) {
-            callbacks.onComplete(fullResponse);
-          }
-        } catch {
-          // incomplete JSON chunk — skip
-        }
-      }
+    // simulate token streaming for UI effect
+    const words = text.split(' ');
+    for (const word of words) {
+      callbacks.onToken(word + ' ');
+      await new Promise(r => setTimeout(r, 18));
     }
+
+    callbacks.onComplete(text);
+
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
-    if (msg.includes('fetch') || msg.includes('Network') || msg.includes('connect') || msg.includes('refused')) {
+    if (msg.includes('fetch') || msg.includes('Network') || msg.includes('connect') || msg.includes('refused') || msg.includes('abort')) {
       callbacks.onError(
         '[ LINK DEAD ]\nCannot reach inference server.\nEnsure Ollama is running:\n  ollama serve'
       );
