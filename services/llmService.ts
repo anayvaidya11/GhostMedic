@@ -1,6 +1,6 @@
 // services/llmService.ts
 
-const OLLAMA_BASE_URL = 'http://192.168.1.157';
+const OLLAMA_BASE_URL = 'http://192.168.1.157:11434';
 const MODEL = 'llama3.2:3b';
 
 const TCCC_SYSTEM_PROMPT = `You are GHOST MEDIC — an AI clinical decision support system for US Army combat medics operating under TCCC (Tactical Combat Casualty Care) protocols in austere, comms-denied environments.
