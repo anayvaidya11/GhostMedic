@@ -1,7 +1,5 @@
 // services/llmService.ts
-
-const OLLAMA_BASE_URL = 'http://192.168.1.157:11434';
-const MODEL = 'llama3.2:3b';
+import { OLLAMA_BASE_URL, OLLAMA_MODEL } from './llmConfig';
 
 const TCCC_SYSTEM_PROMPT = `You are GHOST MEDIC — an AI clinical decision support system for US Army combat medics operating under TCCC (Tactical Combat Casualty Care) protocols in austere, comms-denied environments.
 
@@ -43,7 +41,7 @@ export async function streamTCCCGuidance(
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: MODEL,
+        model: OLLAMA_MODEL,
         prompt,
         system: TCCC_SYSTEM_PROMPT,
         stream: false,
@@ -61,7 +59,6 @@ export async function streamTCCCGuidance(
 
     if (!text) throw new Error('Empty response from model');
 
-    // simulate token streaming for UI effect
     const words = text.split(' ');
     for (const word of words) {
       callbacks.onToken(word + ' ');
